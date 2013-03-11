@@ -5,6 +5,8 @@ import util.parsing.combinator.RegexParsers
 import java.net.URL
 import io.{BufferedSource, Source}
 import variational.BDD.Parser
+import de.fosd.typechef.featureexpr.FeatureExprFactory
+import java.io.File
 
 trait BDD extends VariationalContainer[Boolean, BDD] {
 
@@ -318,6 +320,7 @@ object VisualizeBDD {
           BDD.parseUndertaker(Source.stdin)
       }
 
-    println(GraphViz.asString(bdd, variables))
+      val linuxFm = FeatureExprFactory.dflt.featureModelFactory.createFromDimacsFile_2Var("2.6.33.3-2var.dimacs")
+    println(GraphViz.asString(bdd, variables,linuxFm))
   }
 }

@@ -1,6 +1,7 @@
 package variational
 
 import java.io.FileWriter
+import de.fosd.typechef.featureexpr._
 
 /**
  * Operations to export a value into a dot graph.
@@ -10,7 +11,7 @@ import java.io.FileWriter
  *
  * @author Tillmann Rendel
  */
-class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any, String] {
+class GraphViz(val variables : Array[String] = Array.empty, fm: FeatureModel) extends Memoize[(Any,FeatureExpr), String] {
 
   def escape(text : String) =
     text.replaceAllLiterally("\"", "\\\"")
@@ -31,12 +32,14 @@ class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any,
 
   val thenEdgeFontName = "Calibri"
   val thenEdgeFontSize = "12"
-  val thenEdgeColor = "black"
+    val thenEdgeColor = "black"
+    val thenEdgeColorInfeasible = "red"
   val thenEdgeStyle = "solid"
 
   val elseEdgeFontName = "Calibri"
   val elseEdgeFontSize = "12"
   val elseEdgeColor = "black"
+    val elseEdgeColorInfeasible = "red"
   val elseEdgeStyle = "dotted"
 
   val anyFontName = "Calibri"
@@ -44,7 +47,8 @@ class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any,
 
   def result : String = builder.result
 
-  def process(value : Any) = {
+  def process(v : (Any, FeatureExpr)) = {
+      val (value, pathExpr) = v
     val node = "n" + next
     next += 1
 
@@ -66,18 +70,22 @@ class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any,
         builder ++= "fontsize=\"" + choiceFontSize + "\""
         builder ++= "];\n"
 
-        val thenBranchNode = apply(c.thenBranch)
+          val feature=FeatureExprFactory.createDefinedExternal(condition)
+          val thenPath = pathExpr and feature
+          val elsePath = pathExpr andNot feature
+
+        val thenBranchNode = apply(c.thenBranch, thenPath)
         builder ++= "  " + node + " -> " + thenBranchNode + "["
         builder ++= "style=\"" + thenEdgeStyle + "\","
-        builder ++= "color=\"" + thenEdgeColor + "\", "
+        builder ++= "color=\"" + (if (thenPath.isSatisfiable(fm)) thenEdgeColor else thenEdgeColorInfeasible) + "\", "
         builder ++= "fontname=\"" + thenEdgeFontName + "\", "
         builder ++= "fontsize=\"" + thenEdgeFontSize + "\""
         builder ++= "];\n"
 
-        val elseBranchNode = apply(c.elseBranch)
+        val elseBranchNode = apply(c.elseBranch, elsePath)
         builder ++= "  " + node + " -> " + elseBranchNode + "["
         builder ++= "style=\"" + elseEdgeStyle + "\","
-        builder ++= "color=\"" + elseEdgeColor + "\", "
+        builder ++= "color=\"" + (if (elsePath.isSatisfiable(fm)) elseEdgeColor else elseEdgeColorInfeasible) + "\", "
         builder ++= "fontname=\"" + elseEdgeFontName + "\", "
         builder ++= "fontsize=\"" + elseEdgeFontSize + "\""
         builder ++= "];\n"
@@ -112,7 +120,7 @@ class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any,
 
         var i = 0
         for (child <- s.children) {
-          val childNode = apply(child)
+          val childNode = apply(child, pathExpr)
           builder ++= "  " + node + " -> " + childNode + " [label= \"" + i + "\"];\n"
           i += 1
         }
@@ -132,15 +140,15 @@ class GraphViz(val variables : Array[String] = Array.empty) extends Memoize[Any,
 }
 
 object GraphViz {
-  def asString(value : Any, variables : Array[String] = Array.empty) : String = {
-    val graphViz = new GraphViz(variables)
-    graphViz.process(value)
+  def asString(value : Any, variables : Array[String] = Array.empty, fm: FeatureModel) : String = {
+    val graphViz = new GraphViz(variables, fm)
+    graphViz.process(value, FeatureExprFactory.True)
     "digraph variational {\n" + graphViz.result + "}\n"
   }
 
-  def asFile(value : Any, filename : String, variables : Array[String] = Array.empty) = {
+  def asFile(value : Any, filename : String, variables : Array[String] = Array.empty, fm: FeatureModel) = {
     val fw = new FileWriter(filename);
-    fw.write(asString(value, variables));
+    fw.write(asString(value, variables, fm));
     fw.close()
   }
 }
